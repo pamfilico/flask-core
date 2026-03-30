@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "pamfilico-flask-core"
+version = "1.0.0"
+description = "Standard response envelope, error classes, pagination, and filtering for Flask APIs"
+authors = ["Pamfilico"]
+readme = "README.md"
+packages = [{include = "pamfilico_flask_core", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+flask = ">=2.0.0"
+marshmallow = ">=3.0.0"
+sqlalchemy = ">=1.4.44"
+werkzeug = ">=2.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
