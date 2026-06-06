@@ -9,12 +9,14 @@ from pamfilico_flask_core.errors import (
     DatabaseError,
     DataNotFoundError,
     EnvironmentVariableError,
+    ErrorHandlerConfig,
     ForbidenError,
     NotFoundError,
     ServerError,
     StripeError,
     VehicleError,
     init_errors,
+    register_error_handlers,
 )
 
 __all__ = [
@@ -26,10 +28,12 @@ __all__ = [
     "DatabaseError",
     "DataNotFoundError",
     "EnvironmentVariableError",
+    "ErrorHandlerConfig",
     "ForbidenError",
     "NotFoundError",
     "ServerError",
     "StripeError",
     "VehicleError",
     "init_errors",
+    "register_error_handlers",
 ]

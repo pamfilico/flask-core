@@ -1,5 +1,7 @@
 import logging
 import traceback
+from dataclasses import dataclass
+from typing import Callable, Mapping, Union
 
 from marshmallow.exceptions import ValidationError
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
@@ -10,6 +12,58 @@ from pamfilico_flask_core.responses import standard_response
 logger = logging.getLogger(__name__)
 
 DEBUG = True  # global variable setting the debug config
+
+ErrorHandlerCallable = Callable[[Exception], tuple]
+ErrorHandlerSpec = Union[int, "ErrorHandlerConfig", ErrorHandlerCallable]
+
+
+@dataclass(frozen=True)
+class ErrorHandlerConfig:
+    """Declarative handler for a custom exception type."""
+
+    status_code: int
+    log_level: int = logging.ERROR
+    ui_message: str | None = None
+
+
+def _make_standard_handler(
+    status_code: int,
+    log_level: int = logging.ERROR,
+    ui_message: str | None = None,
+) -> ErrorHandlerCallable:
+    def handler(error: Exception):
+        msg = ui_message if ui_message is not None else str(error)
+        logger.log(log_level, "%s: %s", type(error).__name__, error)
+        return standard_response(error=True, ui_message=msg, status_code=status_code)
+
+    return handler
+
+
+def register_error_handlers(app, handlers: Mapping[type, ErrorHandlerSpec]) -> None:
+    """Register Flask error handlers for app-specific exception types.
+
+    Each value in ``handlers`` may be:
+    - an ``int`` HTTP status code (uses the default ``standard_response`` handler)
+    - an ``ErrorHandlerConfig`` for status, log level, and optional fixed UI message
+    - a callable ``(error) -> standard_response`` tuple for full control
+    """
+    for exc_type, spec in handlers.items():
+        if callable(spec) and not isinstance(spec, type):
+            app.errorhandler(exc_type)(spec)
+        elif isinstance(spec, int):
+            app.errorhandler(exc_type)(_make_standard_handler(spec))
+        elif isinstance(spec, ErrorHandlerConfig):
+            app.errorhandler(exc_type)(
+                _make_standard_handler(
+                    spec.status_code,
+                    log_level=spec.log_level,
+                    ui_message=spec.ui_message,
+                )
+            )
+        else:
+            raise TypeError(
+                f"Handler for {exc_type!r} must be int, ErrorHandlerConfig, or callable"
+            )
 
 
 class BaseError(Exception):
@@ -84,12 +138,19 @@ class ForbidenError(BaseError):
     pass
 
 
-def init_errors(app):
+def init_errors(app, *, extra_handlers: Mapping[type, ErrorHandlerSpec] | None = None, debug: bool | None = None):
     """Register Flask error handlers for all custom and common exceptions.
 
     Call once during app initialization (e.g. in create_app). Handlers
     return standard_response() with appropriate status codes.
+
+    Pass ``extra_handlers`` to register app-specific exception types without
+    forking the package. Each value is an HTTP status ``int``, an
+    ``ErrorHandlerConfig``, or a custom handler callable.
     """
+    global DEBUG
+    if debug is not None:
+        DEBUG = debug
     @app.errorhandler(409)
     def conflict_error(error):
         logger.error("HTTP 409: %s", error)
@@ -141,6 +202,16 @@ def init_errors(app):
         logger.error("AuthenticationError: %s", error)
         msg = str(error)
         return standard_response(error=True, ui_message=msg, status_code=401)
+
+    @app.errorhandler(BizlogicError)
+    def bizlogic_error(error):
+        logger.error("BizlogicError: %s", error)
+        return standard_response(error=True, ui_message=str(error), status_code=400)
+
+    @app.errorhandler(EnvironmentVariableError)
+    def environment_variable_error(error):
+        logger.error("EnvironmentVariableError: %s", error)
+        return standard_response(error=True, ui_message=str(error), status_code=500)
 
     @app.errorhandler(ValidationError)
     def validation_error(error):
@@ -224,6 +295,9 @@ def init_errors(app):
             ui_message=msg,
             status_code=409,
         )
+
+    if extra_handlers:
+        register_error_handlers(app, extra_handlers)
 
     @app.errorhandler(500)
     def server_error(error):
