@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pamfilico-flask-core"
-version = "1.2.0"
+version = "1.2.1"
 description = "Standard response envelope and error classes for Flask APIs"
 authors = ["Pamfilico"]
 readme = "README.md"
