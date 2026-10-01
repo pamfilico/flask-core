@@ -11,7 +11,6 @@ from pamfilico_flask_core.responses import standard_response
 
 logger = logging.getLogger(__name__)
 
-DEBUG = True  # global variable setting the debug config
 
 ErrorHandlerCallable = Callable[[Exception], tuple]
 ErrorHandlerSpec = Union[int, "ErrorHandlerConfig", ErrorHandlerCallable]
@@ -154,10 +153,15 @@ def init_errors(app, *, extra_handlers: Mapping[type, ErrorHandlerSpec] | None =
     Pass ``extra_handlers`` to register app-specific exception types without
     forking the package. Each value is an HTTP status ``int``, an
     ``ErrorHandlerConfig``, or a custom handler callable.
+
+    ``debug=True`` puts the traceback of an unexpected error in the 500's
+    ``dev_message``. Off by default (since 1.3.0; it used to default ON for
+    every app in the process through a module global).
     """
-    global DEBUG
-    if debug is not None:
-        DEBUG = debug
+    # Per app, and OFF unless asked for: with it on, an unexpected error's 500
+    # carries the traceback in ``dev_message`` — table names, query fragments,
+    # file paths. Only a developer's own machine should ever see that.
+    show_traceback = bool(debug)
     @app.errorhandler(409)
     def conflict_error(error):
         logger.error("HTTP 409: %s", error)
@@ -325,7 +329,7 @@ def init_errors(app, *, extra_handlers: Mapping[type, ErrorHandlerSpec] | None =
         if isinstance(e, HTTPException):
             return e
         dev_msg = ""
-        if DEBUG:
+        if show_traceback:
             dev_msg = traceback_info if traceback_info else str(e)
         return standard_response(
             error=True,

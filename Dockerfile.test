@@ -1,0 +1,14 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir poetry
+
+COPY pyproject.toml poetry.lock* README.md ./
+COPY src src
+COPY tests tests
+
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi --with dev
+
+CMD ["python", "-c", "from werkzeug.middleware.dispatcher import DispatcherMiddleware; from werkzeug.serving import run_simple; from tests.test_server import app, debug_app; run_simple('0.0.0.0', 5000, DispatcherMiddleware(app, {'/debug': debug_app}), threaded=True)"]

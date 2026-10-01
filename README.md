@@ -64,3 +64,26 @@ init_errors(
 - `register_error_handlers(app, handlers)` — register additional handlers later
 - `ErrorHandlerConfig` — declarative status/log/message for a custom exception
 - Error classes: `BaseError`, `NotFoundError`, `AuthenticationError`, `ServerError`, `DatabaseError`, `AlreadyExistsError`, `BizlogicError`, `DataNotFoundError`, `ForbidenError`, `VehicleError`, `StripeError`, `EnvironmentVariableError`
+
+
+## Tests
+
+Integration tests against a **real Flask app and a real Postgres** — no mocks:
+
+```bash
+./run-tests.sh        # docker compose up → pytest inside the api container → down
+```
+
+`tests/test_server.py` is the app; `tests/test_integration.py` calls it over HTTP
+and checks, for every error class: the status and envelope, that the session's
+uncommitted row was rolled back, and that the connection went back to the pool —
+including when the connection was killed in Postgres first (rollback fails, close
+must still happen).
+
+## Changelog
+
+- **1.3.0** — `init_errors(debug=...)` is per app and **off by default**: an
+  unexpected error's 500 no longer carries the traceback in `dev_message` unless
+  the app asked for it. (It used to default on, for every app in the process.)
+- **1.2.2** — `BaseError(session=...)` closes the session even when its rollback
+  fails (the pooled connection used to leak).
