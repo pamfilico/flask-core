@@ -73,14 +73,21 @@ class BaseError(Exception):
         self.session = session
         super().__init__(message)
         if self.session:
+            # Two steps, each guarded on its own: a rollback that fails (the
+            # connection already dropped) must still CLOSE the session, or the
+            # pooled connection leaks — under load the pool runs dry and the
+            # app looks hung.
             try:
                 logger.error("RollingBack session")
                 self.session.rollback()
-                self.session.close()
             except Exception as e:
                 logger.error("Error rolling back session: %s", e)
-                traceback_info = traceback.format_exc()
-                logger.error("Traceback: %s", traceback_info)
+                logger.error("Traceback: %s", traceback.format_exc())
+            try:
+                self.session.close()
+            except Exception as e:
+                logger.error("Error closing session: %s", e)
+                logger.error("Traceback: %s", traceback.format_exc())
 
 
 class BizlogicError(BaseError):
